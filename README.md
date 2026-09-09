@@ -9,37 +9,85 @@ MediBot is an enterprise-grade medical and operational AI assistant built for **
 
 ## 🏛️ System Architecture
 
+```
+                                 ┌─────────────────────────────────┐
+                                 │   Staff User / Web Browser      │
+                                 └────────────────┬────────────────┘
+                                                  │ (Auth Token + Query)
+                                                  ▼
+                                 ┌─────────────────────────────────┐
+                                 │   FastAPI Backend (/api/chat)   │
+                                 │  • Token & Role Verification    │
+                                 └────────────────┬────────────────┘
+                                                  │
+                                                  ▼
+                                 ┌─────────────────────────────────┐
+                                 │     Query Intent Classifier     │
+                                 └───────┬─────────────────┬───────┘
+                                         │                 │
+                Analytical / Stats Query │                 │ Clinical / Procedural / Policy Query
+               (Billing & Admin only)    │                 │ (Filtered by Role Permissions)
+                                         ▼                 ▼
+  ┌──────────────────────────────────────────────┐   ┌──────────────────────────────────────────────┐
+  │              SQL RAG PIPELINE                │   │            HYBRID RAG PIPELINE               │
+  │                                              │   │                                              │
+  │  1. Check Analytical Permissions             │   │  1. Qdrant Retrieval-Layer RBAC Filter       │
+  │     (billing_executive, admin)               │   │     must: [access_roles == user_role]        │
+  │                                              │   │                                              │
+  │  2. Natural Language to SQL (LLM)            │   │  2. Hybrid Retrieval (Dense 384d + BM25)     │
+  │     Generates dialect-safe SQLite query      │   │     Top-10 Candidates via RRF Fusion         │
+  │                                              │   │                                              │
+  │  3. SQL Sanitizer & Safety Validator         │   │  3. Cross-Encoder Reranker                   │
+  │     SELECT-only whitelist & table checks     │   │     ms-marco-MiniLM-L-6-v2 (Top-3 Chunks)    │
+  │                                              │   │                                              │
+  │  4. SQLite Database Query Execution          │   │  4. LLM Synthesis & Citations                │
+  │     Executes on mediassist.db                │   │     Ground truth answer + source citations   │
+  │                                              │   │                                              │
+  │  5. LLM Natural Language Summary Generator   │   │                                              │
+  └──────────────────────┬───────────────────────┘   └──────────────────────┬───────────────────────┘
+                         │                                                  │
+                         └────────────────────────┬─────────────────────────┘
+                                                  ▼
+                                 ┌─────────────────────────────────┐
+                                 │   Structured JSON API Response  │
+                                 │  { answer, sources, type, role} │
+                                 └────────────────┬────────────────┘
+                                                  │
+                                                  ▼
+                                 ┌─────────────────────────────────┐
+                                 │   MediBot Web UI / Client View  │
+                                 └─────────────────────────────────┘
+```
+
+<details>
+<summary><b>📊 Click to view Mermaid Flowchart Syntax</b></summary>
+
 ```mermaid
 flowchart TD
-    User([Staff Member]) --> UI[Web Interface / Next.js Frontend]
-    UI -->|Auth Token + Query| API[FastAPI Backend /chat]
+    User["Staff Member"] --> UI["Web Interface"]
+    UI -->|"Auth Token + Query"| API["FastAPI Backend /chat"]
     
-    subgraph Access Control & Intent Routing
-        API --> Auth["Verify Token & Extract Role (doctor, nurse, billing, tech, admin)"]
-        Auth --> Intent{"Query Classifier"}
-    end
+    API --> Auth["Verify Token & Extract Role"]
+    Auth --> Intent{"Query Classifier"}
 
-    subgraph "SQL RAG Engine (Analytical Queries)"
-        Intent -- "Analytical / Statistics (Billing Exec & Admin Only)" --> SQLChain[SQL RAG Pipeline]
-        SQLChain --> LLMSQL[LLM NL-to-SQL Translation]
-        LLMSQL --> Sanitize[SQL Sanitizer & Safety Validator]
-        Sanitize --> SQLiteDB[(mediassist.db SQLite)]
-        SQLiteDB --> LLMAnswerSQL[LLM Natural Language Response Generator]
-    end
+    Intent -- "Analytical / Statistics" --> SQLChain["SQL RAG Pipeline"]
+    SQLChain --> LLMSQL["NL-to-SQL Translation"]
+    LLMSQL --> Sanitize["SQL Sanitizer"]
+    Sanitize --> SQLiteDB[("SQLite Database")]
+    SQLiteDB --> LLMAnswerSQL["Natural Language Response"]
 
-    subgraph "Hybrid Retrieval & Reranking Engine (Document Knowledge)"
-        Intent -- "Clinical / Operational Documents" --> RBACFilter[Qdrant RBAC Metadata Filter]
-        RBACFilter --> Qdrant[(Qdrant Vector DB: Dense + Sparse BM25)]
-        Qdrant --> Candidates[Top-10 Candidates (RRF Fusion)]
-        Candidates --> Reranker[Cross-Encoder Reranker]
-        Reranker --> Top3[Top-3 Relevant Chunks]
-        Top3 --> LLMDoc[LLM Contextual Synthesis & Source Citations]
-    end
+    Intent -- "Clinical / Operational" --> RBACFilter["Qdrant RBAC Filter"]
+    RBACFilter --> Qdrant[("Qdrant Hybrid Vector DB")]
+    Qdrant --> Candidates["Top-10 Candidates (RRF Fusion)"]
+    Candidates --> Reranker["Cross-Encoder Reranker"]
+    Reranker --> Top3["Top-3 Relevant Chunks"]
+    Top3 --> LLMDoc["LLM Synthesis & Citations"]
 
-    LLMAnswerSQL --> JSONResponse[Structured API Response]
+    LLMAnswerSQL --> JSONResponse["Structured API Response"]
     LLMDoc --> JSONResponse
     JSONResponse --> UI
 ```
+</details>
 
 ---
 
