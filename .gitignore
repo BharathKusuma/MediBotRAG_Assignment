@@ -1,0 +1,42 @@
+# Environments & Dependencies
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment Variables & Secrets
+.env
+.env.*
+*.env
+*.env.local
+*credentials*
+*secret*
+*.key
+*.pem
+!backend/config.py
+!.env.example
+
+# Databases & Vector DB cache
+qdrant_db/
+*.db
+*.sqlite
+*.sqlite3
+!mediassist_data/db/mediassist.db
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

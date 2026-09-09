@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediBot - MediAssist Health Network</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0b1120;
+            --bg-secondary: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(51, 65, 85, 0.6);
+            --border-hover: rgba(99, 102, 241, 0.4);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --primary: #06b6d4;
+            --primary-glow: rgba(6, 182, 212, 0.25);
+            --primary-dark: #0891b2;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Ambient Glow */
+        .ambient-glow {
+            position: fixed;
+            top: -20%;
+            left: 20%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(139, 92, 246, 0.05) 50%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* App Container */
+        #app {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            min-width: 320px;
+            max-width: 320px;
+            flex-shrink: 0;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            gap: 12px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            height: 100vh;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo-icon {
+            width: 34px;
+            height: 34px;
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 17px;
+            color: white;
+            box-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        .logo-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, #ffffff, #93c5fd);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.1;
+        }
+
+        .logo-subtitle {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        /* User Profile Card */
+        .user-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            backdrop-filter: blur(12px);
+        }
+
+        .user-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .role-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .role-doctor { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .role-nurse { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+        .role-billing_executive { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .role-technician { background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+        .role-admin { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+        .user-dept {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .section-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 5px;
+        }
+
+        .collections-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .coll-pill {
+            font-size: 10px;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .coll-pill.active {
+            color: #38bdf8;
+            border-color: rgba(56, 189, 248, 0.4);
+            background: rgba(56, 189, 248, 0.1);
+        }
+
+        /* Demo Role Switcher */
+        .demo-roles-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .demo-roles {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .demo-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 5px 9px;
+            border-radius: 6px;
+            font-size: 11.5px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .demo-btn:hover {
+            border-color: var(--primary);
+            background: rgba(6, 182, 212, 0.1);
+            transform: translateX(2px);
+        }
+
+        .demo-btn.active {
+            border-color: var(--primary);
+            background: rgba(6, 182, 212, 0.18);
+            box-shadow: 0 0 8px rgba(6, 182, 212, 0.2);
+        }
+
+        /* LLM Key Manager Card */
+        .llm-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            margin-top: 12px;
+        }
+
+        .mode-badge {
+            font-size: 9.5px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .mode-badge.cloud {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .mode-badge.offline {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .provider-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3px;
+            background: rgba(15, 23, 42, 0.7);
+            padding: 2px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .provider-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 4px 2px;
+            border-radius: 4px;
+            font-size: 10.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .provider-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .provider-btn.active {
+            background: var(--primary-dark);
+            color: white;
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        .key-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .key-input {
+            width: 100%;
+            height: 28px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 4px 26px 4px 8px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-main);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .key-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        .toggle-vis-btn {
+            position: absolute;
+            right: 4px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            color: var(--text-muted);
+        }
+
+        .toggle-vis-btn:hover {
+            opacity: 1;
+        }
+
+        .key-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .save-key-btn {
+            flex: 1;
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            border: none;
+            color: white;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 10.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .save-key-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        .clear-key-btn {
+            background: rgba(51, 65, 85, 0.5);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 10.5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .clear-key-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #f87171;
+        }
+
+        .key-status-msg {
+            font-size: 9.5px;
+            line-height: 1.2;
+            min-height: 0px;
+        }
+
+        /* Main Chat Area */
+        .main-chat {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            background: radial-gradient(ellipse at top right, rgba(15, 23, 42, 0.6), var(--bg-primary));
+        }
+
+        /* Header */
+        .chat-header {
+            padding: 16px 28px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(8px);
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .security-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .security-dot {
+            width: 7px;
+            height: 7px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        /* Message List */
+        .messages-container {
+            flex: 1;
+            min-width: 0;
+            padding: 28px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .message {
+            display: flex;
+            gap: 14px;
+            max-width: 85%;
+            min-width: 0;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .avatar.bot {
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            color: white;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .avatar.user {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .message-content {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .bubble {
+            padding: 14px 18px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            line-height: 1.6;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .message.bot .bubble {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: #f1f5f9;
+            backdrop-filter: blur(8px);
+        }
+
+        .message.user .bubble {
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        /* Meta tags above/below bubble */
+        .msg-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .tag-retrieval {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .tag-hybrid {
+            background: rgba(6, 182, 212, 0.15);
+            color: #22d3ee;
+            border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+
+        .tag-sql {
+            background: rgba(139, 92, 246, 0.15);
+            color: #c084fc;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        /* Refusal Alert Card */
+        .rbac-refusal {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            color: #fca5a5;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .rbac-refusal-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            color: #ef4444;
+        }
+
+        /* Citations & Sources Accordion */
+        .citations-area {
+            margin-top: 10px;
+            border-top: 1px solid rgba(51, 65, 85, 0.4);
+            padding-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .citation-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 6px;
+            color: var(--text-muted);
+        }
+
+        .citation-item:hover {
+            border-color: var(--primary);
+            color: #e2e8f0;
+        }
+
+        .citation-doc {
+            font-weight: 500;
+            color: #38bdf8;
+        }
+
+        .citation-score {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Quick Suggestions */
+        .suggestions {
+            padding: 0 28px 12px 28px;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            max-width: 100%;
+            min-width: 0;
+            scrollbar-width: thin;
+        }
+
+        .sugg-chip {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .sugg-chip:hover {
+            border-color: var(--primary);
+            color: #f8fafc;
+            background: rgba(6, 182, 212, 0.12);
+        }
+
+        .sugg-chip.adversarial {
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+
+        .sugg-chip.adversarial:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: #ef4444;
+        }
+
+        /* Input Area */
+        .input-bar-container {
+            padding: 16px 28px 24px 28px;
+            background: rgba(15, 23, 42, 0.8);
+            border-top: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+        }
+
+        .input-form {
+            display: flex;
+            gap: 12px;
+            position: relative;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            font-size: 14px;
+            color: var(--text-main);
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, #06b6d4, #2563eb);
+            border: none;
+            color: white;
+            padding: 0 24px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);
+        }
+
+        .send-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(6, 182, 212, 0.35);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Markdown Styling inside bubbles */
+        .bubble table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+            font-size: 13px;
+        }
+
+        .bubble th, .bubble td {
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            text-align: left;
+        }
+
+        .bubble th {
+            background: rgba(51, 65, 85, 0.4);
+            color: #38bdf8;
+        }
+
+        .bubble pre {
+            background: #020617;
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 8px 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .bubble code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(51, 65, 85, 0.4);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #38bdf8;
+        }
+
+        .bubble ul, .bubble ol {
+            margin-left: 20px;
+            margin-top: 6px;
+            margin-bottom: 6px;
+        }
+
+        /* Typing indicator */
+        .typing {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 0;
+        }
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: #06b6d4;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <div class="logo-icon">M</div>
+                <div>
+                    <div class="logo-title">MediBot</div>
+                    <div class="logo-subtitle">MediAssist Health Network</div>
+                </div>
+            </div>
+
+            <!-- Active User Profile -->
+            <div class="user-card" id="userCard">
+                <div class="user-header">
+                    <span class="user-name" id="userName">Dr. Rajesh Mehta</span>
+                    <span class="role-badge role-doctor" id="roleBadge">doctor</span>
+                </div>
+                <div class="user-dept" id="userDept">Clinical Cardiology</div>
+
+                <div class="section-label">Permitted Collections (RBAC)</div>
+                <div class="collections-list" id="collectionsList">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Demo Role Switcher -->
+            <div class="demo-roles-section">
+                <div class="section-label">Switch Demo Role</div>
+                <div class="demo-roles" id="demoRolesList">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- LLM Engine & API Key Setup -->
+            <div class="llm-card" id="llmCard">
+                <div class="user-header">
+                    <span style="font-weight: 600; font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                        ⚡ LLM Model Engine
+                    </span>
+                    <span class="mode-badge offline" id="llmModeBadge">Offline Mode</span>
+                </div>
+
+                <div class="provider-selector">
+                    <button type="button" class="provider-btn active" id="btn-provider-gemini" onclick="selectProvider('gemini')">
+                        ✨ Gemini
+                    </button>
+                    <button type="button" class="provider-btn" id="btn-provider-groq" onclick="selectProvider('groq')">
+                        ⚡ Groq
+                    </button>
+                    <button type="button" class="provider-btn" id="btn-provider-openai" onclick="selectProvider('openai')">
+                        🧠 OpenAI
+                    </button>
+                </div>
+
+                <div class="key-input-wrapper">
+                    <input 
+                        type="password" 
+                        id="apiKeyInput" 
+                        class="key-input" 
+                        placeholder="Paste Gemini API Key..." 
+                        autocomplete="off"
+                        spellcheck="false"
+                    />
+                    <button type="button" class="toggle-vis-btn" id="toggleVisBtn" onclick="toggleKeyVisibility()" title="Show/Hide Key">
+                        👁️
+                    </button>
+                </div>
+
+                <div class="key-actions">
+                    <button type="button" class="save-key-btn" id="saveKeyBtn" onclick="saveApiKey()">
+                        Save & Connect
+                    </button>
+                    <button type="button" class="clear-key-btn" id="clearKeyBtn" onclick="clearApiKey()" title="Clear and switch to offline extraction mode">
+                        Clear
+                    </button>
+                </div>
+
+                <div class="key-status-msg" id="keyStatusMsg"></div>
+            </div>
+
+            <!-- Architecture Info -->
+            <div style="margin-top: auto; font-size: 9.5px; color: var(--text-dim); line-height: 1.35; border-top: 1px solid var(--border-color); padding-top: 6px;">
+                🔒 <strong>Layer-3 RBAC Enforcement</strong><br>
+                Metadata filtered at Qdrant retrieval layer.<br>
+                Dense + BM25 Hybrid + Cross-Encoder Rerank.
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="main-chat">
+            <header class="chat-header">
+                <div class="header-info">
+                    <div class="header-title">Hospital Knowledge & Operations Assistant</div>
+                    <div class="security-badge">
+                        <span class="security-dot"></span>
+                        <span>Vector Retrieval Guardrails Active</span>
+                    </div>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    12 Hospitals · 40+ Clinics · 5 Roles
+                </div>
+            </header>
+
+            <!-- Messages Stream -->
+            <div class="messages-container" id="messagesContainer">
+                <div class="message bot">
+                    <div class="avatar bot">🤖</div>
+                    <div class="message-content">
+                        <div class="msg-meta">
+                            <span class="tag-retrieval tag-hybrid">MediBot System</span>
+                        </div>
+                        <div class="bubble">
+                            Welcome to <strong>MediBot</strong>. I am your internal hospital assistant.
+                            <br><br>
+                            Your access privileges are verified via your active role. You can ask clinical protocol questions, nursing procedures, equipment diagnostics, or operational SQL statistics (if authorized).
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contextual Suggestions -->
+            <div class="suggestions" id="suggestionsArea">
+                <!-- Dynamically populated per role -->
+            </div>
+
+            <!-- Input Bar -->
+            <div class="input-bar-container">
+                <form class="input-form" id="chatForm">
+                    <input 
+                        type="text" 
+                        class="chat-input" 
+                        id="chatInput" 
+                        placeholder="Ask a medical protocol, billing code, equipment issue, or analytical question..."
+                        autocomplete="off"
+                    />
+                    <button type="submit" class="send-btn" id="sendBtn">Send</button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = "";
+
+        const DEMO_ACCOUNTS = [
+            { username: "dr.mehta", name: "Dr. Rajesh Mehta", role: "doctor", dept: "Clinical Cardiology", icon: "🩺" },
+            { username: "nurse.priya", name: "Priya Sharma (RN)", role: "nurse", dept: "ICU & Patient Care", icon: "💉" },
+            { username: "billing.ravi", name: "Ravi Kumar", role: "billing_executive", dept: "Billing & Insurance", icon: "📑" },
+            { username: "tech.anand", name: "Anand Verma", role: "technician", dept: "Biomedical Engineering", icon: "🔧" },
+            { username: "admin.sys", name: "System Administrator", role: "admin", dept: "Executive / IT", icon: "🛡️" }
+        ];
+
+        const ROLE_COLLECTIONS_MAP = {
+            "doctor": ["clinical", "nursing", "general"],
+            "nurse": ["nursing", "general"],
+            "billing_executive": ["billing", "general"],
+            "technician": ["equipment", "general"],
+            "admin": ["general", "clinical", "nursing", "billing", "equipment"]
+        };
+
+        const ROLE_SUGGESTIONS = {
+            "doctor": [
+                "What is the clinical treatment protocol for NSTEMI?",
+                "What is the dosage and contraindications for Epinephrine?",
+                "What are the diagnostic reference thresholds for cardiac troponin?"
+            ],
+            "nurse": [
+                "What is the correct IV cannula size for pediatric under 5kg?",
+                "What is the hand hygiene and infection control protocol in ICU?",
+                "What are the steps for Foley catheterization?"
+            ],
+            "billing_executive": [
+                "How many billing claims were escalated?",
+                "What is the cashless pre-authorization SLA for Star Health?",
+                "What is the total approved amount for cardiology claims?"
+            ],
+            "technician": [
+                "What are the calibration steps for DriveFlow IP-200 infusion pump?",
+                "What does fault code F-05 indicate on SterilPro 3000?",
+                "What is the preventive maintenance schedule for autoclaves?"
+            ],
+            "admin": [
+                "Which equipment category has the most open maintenance tickets?",
+                "What is the total claimed vs approved amount across all claims?",
+                "What is the hospital leave policy and code of conduct?",
+                "Show diagnostic reference thresholds for acute pancreatitis"
+            ]
+        };
+
+        let currentUser = DEMO_ACCOUNTS[0];
+        let activeProvider = "gemini";
+        let llmStatus = {};
+
+        function init() {
+            renderDemoRoles();
+            updateUserUI();
+            setupEvents();
+            fetchLLMStatus();
+        }
+
+        async function fetchLLMStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/settings/llm-status`);
+                if (res.ok) {
+                    llmStatus = await res.json();
+                    updateLLMUI();
+                }
+            } catch (e) {
+                console.error("Failed to fetch LLM status:", e);
+            }
+        }
+
+        function updateLLMUI() {
+            const badge = document.getElementById("llmModeBadge");
+            const input = document.getElementById("apiKeyInput");
+            const statusMsg = document.getElementById("keyStatusMsg");
+
+            if (llmStatus.mode === "cloud_llm") {
+                const provName = llmStatus.active_provider ? llmStatus.active_provider.toUpperCase() : "CLOUD";
+                badge.textContent = `${provName} Active`;
+                badge.className = "mode-badge cloud";
+            } else {
+                badge.textContent = "Offline Mode";
+                badge.className = "mode-badge offline";
+            }
+
+            const provMap = {
+                "gemini": { name: "Google Gemini", prefix: "AIza...", masked: llmStatus.gemini_masked },
+                "groq": { name: "Groq (LLaMA 3.3)", prefix: "gsk_...", masked: llmStatus.groq_masked },
+                "openai": { name: "OpenAI (GPT-4o)", prefix: "sk-...", masked: llmStatus.openai_masked }
+            };
+
+            const info = provMap[activeProvider] || provMap["gemini"];
+            if (info.masked) {
+                input.placeholder = `Configured: ${info.masked}`;
+                statusMsg.innerHTML = `<span style="color: #34d399;">✓ ${info.name} key active</span>`;
+            } else {
+                input.placeholder = `Paste ${info.name} API Key...`;
+                if (llmStatus.mode === "offline_extraction") {
+                    statusMsg.innerHTML = `<span style="color: #94a3b8;">Using offline extractive synthesis.</span>`;
+                }
+            }
+        }
+
+        function selectProvider(prov) {
+            activeProvider = prov;
+            document.querySelectorAll(".provider-btn").forEach(b => b.classList.remove("active"));
+            const btn = document.getElementById(`btn-provider-${prov}`);
+            if (btn) btn.classList.add("active");
+
+            const input = document.getElementById("apiKeyInput");
+            input.value = "";
+            updateLLMUI();
+        }
+
+        function toggleKeyVisibility() {
+            const input = document.getElementById("apiKeyInput");
+            const btn = document.getElementById("toggleVisBtn");
+            if (input.type === "password") {
+                input.type = "text";
+                btn.textContent = "🙈";
+            } else {
+                input.type = "password";
+                btn.textContent = "👁️";
+            }
+        }
+
+        async function saveApiKey() {
+            const input = document.getElementById("apiKeyInput");
+            const val = input.value.trim();
+            const statusMsg = document.getElementById("keyStatusMsg");
+            const saveBtn = document.getElementById("saveKeyBtn");
+
+            if (!val) {
+                statusMsg.innerHTML = `<span style="color: #f87171;">Please enter an API key.</span>`;
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = "Saving...";
+
+            try {
+                const res = await fetch(`${API_BASE}/settings/api-key`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        provider: activeProvider,
+                        api_key: val
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    llmStatus = data.status || {};
+                    input.value = "";
+                    input.type = "password";
+                    document.getElementById("toggleVisBtn").textContent = "👁️";
+                    updateLLMUI();
+                    statusMsg.innerHTML = `<span style="color: #34d399;">✓ Key saved to .env & activated!</span>`;
+                    addSystemMessage(`Configured **${activeProvider.toUpperCase()}** API key. MediBot has activated live cloud LLM generation.`);
+                } else {
+                    const err = await res.json();
+                    statusMsg.innerHTML = `<span style="color: #f87171;">Error: ${err.detail || 'Failed to update key'}</span>`;
+                }
+            } catch (e) {
+                statusMsg.innerHTML = `<span style="color: #f87171;">Connection error saving key.</span>`;
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = "Save & Connect";
+            }
+        }
+
+        async function clearApiKey() {
+            const input = document.getElementById("apiKeyInput");
+            const statusMsg = document.getElementById("keyStatusMsg");
+            const clearBtn = document.getElementById("clearKeyBtn");
+
+            clearBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/settings/api-key`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        provider: activeProvider,
+                        api_key: ""
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    llmStatus = data.status || {};
+                    input.value = "";
+                    updateLLMUI();
+                    statusMsg.innerHTML = `<span style="color: #fbbf24;">Key cleared. Reverted to offline mode.</span>`;
+                    addSystemMessage(`Cleared **${activeProvider.toUpperCase()}** API key. MediBot reverted to offline local extraction.`);
+                }
+            } catch (e) {
+                statusMsg.innerHTML = `<span style="color: #f87171;">Error clearing key.</span>`;
+            } finally {
+                clearBtn.disabled = false;
+            }
+        }
+
+        function renderDemoRoles() {
+            const list = document.getElementById("demoRolesList");
+            list.innerHTML = "";
+            DEMO_ACCOUNTS.forEach(acc => {
+                const btn = document.createElement("button");
+                btn.className = `demo-btn ${acc.username === currentUser.username ? 'active' : ''}`;
+                btn.innerHTML = `
+                    <span>${acc.icon} ${acc.name}</span>
+                    <span class="role-badge role-${acc.role}">${acc.role}</span>
+                `;
+                btn.onclick = () => selectUser(acc);
+                list.appendChild(btn);
+            });
+        }
+
+        function selectUser(user) {
+            currentUser = user;
+            renderDemoRoles();
+            updateUserUI();
+            addSystemMessage(`Switched active session to **${currentUser.name}** (\`${currentUser.role}\`). RBAC retrieval boundaries updated.`);
+        }
+
+        function updateUserUI() {
+            document.getElementById("userName").textContent = currentUser.name;
+            const badge = document.getElementById("roleBadge");
+            badge.textContent = currentUser.role;
+            badge.className = `role-badge role-${currentUser.role}`;
+            document.getElementById("userDept").textContent = currentUser.dept;
+
+            const collList = document.getElementById("collectionsList");
+            collList.innerHTML = "";
+            const permitted = ROLE_COLLECTIONS_MAP[currentUser.role] || [];
+            const allColls = ["general", "clinical", "nursing", "billing", "equipment"];
+
+            allColls.forEach(c => {
+                const isPermitted = permitted.includes(c);
+                const pill = document.createElement("div");
+                pill.className = `coll-pill ${isPermitted ? 'active' : ''}`;
+                pill.innerHTML = `${isPermitted ? '✓' : '✗'} ${c}`;
+                collList.appendChild(pill);
+            });
+
+            renderSuggestions();
+        }
+
+        function renderSuggestions() {
+            const area = document.getElementById("suggestionsArea");
+            area.innerHTML = "";
+            const suggs = ROLE_SUGGESTIONS[currentUser.role] || [];
+            suggs.forEach(s => {
+                const chip = document.createElement("button");
+                chip.className = `sugg-chip ${s.includes('Adversarial') ? 'adversarial' : ''}`;
+                chip.textContent = s;
+                chip.onclick = () => {
+                    const cleanText = s.replace(/^⚠️ Adversarial:\s*/, "");
+                    document.getElementById("chatInput").value = cleanText;
+                    document.getElementById("chatForm").dispatchEvent(new Event("submit"));
+                };
+                area.appendChild(chip);
+            });
+        }
+
+        function addSystemMessage(text) {
+            const container = document.getElementById("messagesContainer");
+            const div = document.createElement("div");
+            div.className = "message bot";
+            div.innerHTML = `
+                <div class="avatar bot">🔒</div>
+                <div class="message-content">
+                    <div class="msg-meta">
+                        <span class="tag-retrieval tag-hybrid">RBAC Context Update</span>
+                    </div>
+                    <div class="bubble">${marked.parse(text)}</div>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function setupEvents() {
+            const form = document.getElementById("chatForm");
+            const input = document.getElementById("chatInput");
+            const btn = document.getElementById("sendBtn");
+
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const q = input.value.trim();
+                if (!q) return;
+
+                // Detect if user pasted API key into chat input and auto-fill the settings card
+                if (/^(?:gsk_|AIzaSy|sk-|ghp_|glpat-)[A-Za-z0-9_\-]{16,}$/.test(q) || (q.length >= 30 && !q.includes(" ") && /^[A-Za-z0-9_\-]+$/.test(q))) {
+                    const keyInput = document.getElementById("apiKeyInput");
+                    if (keyInput) {
+                        keyInput.value = q;
+                        keyInput.focus();
+                        keyInput.style.borderColor = "var(--primary)";
+                        keyInput.style.boxShadow = "0 0 12px var(--primary-glow)";
+                        setTimeout(() => {
+                            keyInput.style.borderColor = "";
+                            keyInput.style.boxShadow = "";
+                        }, 4000);
+                    }
+                }
+
+                // Append user message
+                appendUserMessage(q);
+                input.value = "";
+                btn.disabled = true;
+
+                // Append loading indicator
+                const typingId = appendTypingIndicator();
+
+                try {
+                    const res = await fetch(`${API_BASE}/chat`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            question: q,
+                            role: currentUser.role
+                        })
+                    });
+
+                    removeElement(typingId);
+
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        appendErrorMessage(errData.detail || "Error connecting to MediBot backend.");
+                        return;
+                    }
+
+                    const data = await res.json();
+                    appendBotResponse(data);
+
+                } catch (err) {
+                    removeElement(typingId);
+                    appendErrorMessage("Failed to reach server. Please ensure the backend is running.");
+                } finally {
+                    btn.disabled = false;
+                }
+            };
+        }
+
+        function appendUserMessage(text) {
+            const container = document.getElementById("messagesContainer");
+            const div = document.createElement("div");
+            div.className = "message user";
+            div.innerHTML = `
+                <div class="avatar user">👤</div>
+                <div class="message-content">
+                    <div class="bubble">${escapeHtml(text)}</div>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendTypingIndicator() {
+            const container = document.getElementById("messagesContainer");
+            const div = document.createElement("div");
+            const id = "typing-" + Date.now();
+            div.id = id;
+            div.className = "message bot";
+            div.innerHTML = `
+                <div class="avatar bot">🤖</div>
+                <div class="message-content">
+                    <div class="bubble">
+                        <div class="typing">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return id;
+        }
+
+        function removeElement(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function appendBotResponse(data) {
+            const container = document.getElementById("messagesContainer");
+            const div = document.createElement("div");
+            div.className = "message bot";
+
+            const tagClass = data.retrieval_type === "sql_rag" ? "tag-sql" : "tag-hybrid";
+            const tagLabel = data.retrieval_type === "sql_rag" ? "SQL RAG (Relational DB)" : "Hybrid RAG (Dense + BM25 + Rerank)";
+
+            let bodyHtml = "";
+
+            if (data.blocked_by_rbac) {
+                bodyHtml = `
+                    <div class="rbac-refusal">
+                        <div class="rbac-refusal-title">
+                            <span>🛡️ Access Control Violation (RBAC Layer Guardrail)</span>
+                        </div>
+                        <div>${marked.parse(data.answer)}</div>
+                    </div>
+                `;
+            } else {
+                bodyHtml = `<div class="bubble">${marked.parse(data.answer)}</div>`;
+            }
+
+            // Citations / Sources
+            let citationsHtml = "";
+            if (data.sources && data.sources.length > 0) {
+                const items = data.sources.map(s => {
+                    const score = s.rerank_score !== null && s.rerank_score !== undefined
+                        ? `<span class="citation-score">Rerank: ${s.rerank_score.toFixed(3)}</span>`
+                        : `<span class="citation-score">${s.collection}</span>`;
+                    return `
+                        <div class="citation-item">
+                            <div>📄 <span class="citation-doc">${s.source_document}</span> &bull; ${s.section_title}</div>
+                            ${score}
+                        </div>
+                    `;
+                }).join("");
+
+                citationsHtml = `
+                    <div class="citations-area">
+                        <div class="section-label">Source Citations (${data.sources.length} retrieved passages)</div>
+                        ${items}
+                    </div>
+                `;
+            }
+
+            div.innerHTML = `
+                <div class="avatar bot">🤖</div>
+                <div class="message-content">
+                    <div class="msg-meta">
+                        <span class="tag-retrieval ${tagClass}">${tagLabel}</span>
+                        <span style="font-size: 11px; color: var(--text-dim);">&bull; Role: ${data.role}</span>
+                    </div>
+                    ${bodyHtml}
+                    ${citationsHtml}
+                </div>
+            `;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendErrorMessage(msg) {
+            const container = document.getElementById("messagesContainer");
+            const div = document.createElement("div");
+            div.className = "message bot";
+            div.innerHTML = `
+                <div class="avatar bot" style="background: #ef4444;">⚠️</div>
+                <div class="message-content">
+                    <div class="bubble" style="border-color: #ef4444; color: #fca5a5;">
+                        <strong>System Notice:</strong> ${escapeHtml(msg)}
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
