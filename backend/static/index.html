@@ -784,9 +784,131 @@
         }
         .dot:nth-child(1) { animation-delay: -0.32s; }
         .dot:nth-child(2) { animation-delay: -0.16s; }
-        @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
+        /* Architecture Modal & Button */
+        .btn-arch-view {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid var(--border-color);
+            color: #38bdf8;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .btn-arch-view:hover {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: #38bdf8;
+            color: #fff;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 11, 24, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-card {
+            background: #0f172a;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 14px;
+            width: 100%;
+            max-width: 960px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.6), 0 0 20px rgba(56,189,248,0.15);
+            overflow: hidden;
+            animation: modalPop 0.25s ease-out;
+        }
+        @keyframes modalPop {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .modal-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.9);
+        }
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            line-height: 1;
+            transition: all 0.15s;
+        }
+        .modal-close-btn:hover {
+            color: #fff;
+            background: rgba(239, 68, 68, 0.2);
+        }
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        .arch-pre {
+            background: #090e1a;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            color: #38bdf8;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            line-height: 1.35;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        .arch-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 14px;
+        }
+        .arch-layer-card {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px 18px;
+        }
+        .arch-layer-card h4 {
+            font-size: 13px;
+            color: #f8fafc;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
     </style>
 </head>
@@ -890,8 +1012,13 @@
                         <span>Vector Retrieval Guardrails Active</span>
                     </div>
                 </div>
-                <div style="font-size: 12px; color: var(--text-muted);">
-                    12 Hospitals · 40+ Clinics · 5 Roles
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <button type="button" class="btn-arch-view" onclick="openArchModal()" title="View System Architecture & RBAC Design">
+                        🏛️ Architecture
+                    </button>
+                    <div style="font-size: 12px; color: var(--text-muted);">
+                        12 Hospitals · 40+ Clinics · 5 Roles
+                    </div>
                 </div>
             </header>
 
@@ -1180,18 +1307,42 @@
             renderSuggestions();
         }
 
+        function escapeHtml(str) {
+            if (typeof str !== "string") return String(str || "");
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function parseMarkdown(text) {
+            if (!text) return "";
+            if (typeof marked !== "undefined" && marked && marked.parse) {
+                try {
+                    return marked.parse(text);
+                } catch (e) {
+                    console.error("Markdown parse error:", e);
+                }
+            }
+            return escapeHtml(text).replace(/\n/g, "<br>");
+        }
+
         function renderSuggestions() {
             const area = document.getElementById("suggestionsArea");
             area.innerHTML = "";
             const suggs = ROLE_SUGGESTIONS[currentUser.role] || [];
             suggs.forEach(s => {
                 const chip = document.createElement("button");
+                chip.type = "button";
                 chip.className = `sugg-chip ${s.includes('Adversarial') ? 'adversarial' : ''}`;
                 chip.textContent = s;
-                chip.onclick = () => {
+                chip.onclick = (e) => {
+                    e.preventDefault();
                     const cleanText = s.replace(/^⚠️ Adversarial:\s*/, "");
                     document.getElementById("chatInput").value = cleanText;
-                    document.getElementById("chatForm").dispatchEvent(new Event("submit"));
+                    submitQuery(cleanText);
                 };
                 area.appendChild(chip);
             });
@@ -1207,73 +1358,78 @@
                     <div class="msg-meta">
                         <span class="tag-retrieval tag-hybrid">RBAC Context Update</span>
                     </div>
-                    <div class="bubble">${marked.parse(text)}</div>
+                    <div class="bubble">${parseMarkdown(text)}</div>
                 </div>
             `;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         }
 
-        function setupEvents() {
-            const form = document.getElementById("chatForm");
+        async function submitQuery(forcedQuery) {
             const input = document.getElementById("chatInput");
             const btn = document.getElementById("sendBtn");
+            const q = (typeof forcedQuery === "string" ? forcedQuery : input.value).trim();
+            if (!q) return;
 
-            form.onsubmit = async (e) => {
+            // Detect if user pasted API key into chat input and auto-fill the settings card
+            if (/^(?:gsk_|AIzaSy|sk-|ghp_|glpat-)[A-Za-z0-9_\-]{16,}$/.test(q) || (q.length >= 30 && !q.includes(" ") && /^[A-Za-z0-9_\-]+$/.test(q))) {
+                const keyInput = document.getElementById("apiKeyInput");
+                if (keyInput) {
+                    keyInput.value = q;
+                    keyInput.focus();
+                    keyInput.style.borderColor = "var(--primary)";
+                    keyInput.style.boxShadow = "0 0 12px var(--primary-glow)";
+                    setTimeout(() => {
+                        keyInput.style.borderColor = "";
+                        keyInput.style.boxShadow = "";
+                    }, 4000);
+                }
+            }
+
+            // Append user message
+            appendUserMessage(q);
+            input.value = "";
+            btn.disabled = true;
+
+            // Append loading indicator
+            const typingId = appendTypingIndicator();
+
+            try {
+                const res = await fetch(`${API_BASE}/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        question: q,
+                        role: currentUser.role
+                    })
+                });
+
+                removeElement(typingId);
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    appendErrorMessage(errData.detail || "Error connecting to MediBot backend.");
+                    return;
+                }
+
+                const data = await res.json();
+                appendBotResponse(data);
+
+            } catch (err) {
+                removeElement(typingId);
+                appendErrorMessage("Failed to reach server. Please ensure the backend is running.");
+            } finally {
+                btn.disabled = false;
+                input.focus();
+            }
+        }
+
+        function setupEvents() {
+            const form = document.getElementById("chatForm");
+
+            form.onsubmit = (e) => {
                 e.preventDefault();
-                const q = input.value.trim();
-                if (!q) return;
-
-                // Detect if user pasted API key into chat input and auto-fill the settings card
-                if (/^(?:gsk_|AIzaSy|sk-|ghp_|glpat-)[A-Za-z0-9_\-]{16,}$/.test(q) || (q.length >= 30 && !q.includes(" ") && /^[A-Za-z0-9_\-]+$/.test(q))) {
-                    const keyInput = document.getElementById("apiKeyInput");
-                    if (keyInput) {
-                        keyInput.value = q;
-                        keyInput.focus();
-                        keyInput.style.borderColor = "var(--primary)";
-                        keyInput.style.boxShadow = "0 0 12px var(--primary-glow)";
-                        setTimeout(() => {
-                            keyInput.style.borderColor = "";
-                            keyInput.style.boxShadow = "";
-                        }, 4000);
-                    }
-                }
-
-                // Append user message
-                appendUserMessage(q);
-                input.value = "";
-                btn.disabled = true;
-
-                // Append loading indicator
-                const typingId = appendTypingIndicator();
-
-                try {
-                    const res = await fetch(`${API_BASE}/chat`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            question: q,
-                            role: currentUser.role
-                        })
-                    });
-
-                    removeElement(typingId);
-
-                    if (!res.ok) {
-                        const errData = await res.json().catch(() => ({}));
-                        appendErrorMessage(errData.detail || "Error connecting to MediBot backend.");
-                        return;
-                    }
-
-                    const data = await res.json();
-                    appendBotResponse(data);
-
-                } catch (err) {
-                    removeElement(typingId);
-                    appendErrorMessage("Failed to reach server. Please ensure the backend is running.");
-                } finally {
-                    btn.disabled = false;
-                }
+                submitQuery();
             };
         }
 
@@ -1335,11 +1491,11 @@
                         <div class="rbac-refusal-title">
                             <span>🛡️ Access Control Violation (RBAC Layer Guardrail)</span>
                         </div>
-                        <div>${marked.parse(data.answer)}</div>
+                        <div>${parseMarkdown(data.answer)}</div>
                     </div>
                 `;
             } else {
-                bodyHtml = `<div class="bubble">${marked.parse(data.answer)}</div>`;
+                bodyHtml = `<div class="bubble">${parseMarkdown(data.answer)}</div>`;
             }
 
             // Citations / Sources
@@ -1381,6 +1537,7 @@
             container.scrollTop = container.scrollHeight;
         }
 
+
         function appendErrorMessage(msg) {
             const container = document.getElementById("messagesContainer");
             const div = document.createElement("div");
@@ -1397,11 +1554,59 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        function escapeHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        function openArchModal() {
+            const modal = document.getElementById("archModal");
+            if (modal) {
+                modal.classList.add("active");
+            }
+        }
+
+        function closeArchModal(e) {
+            if (e && e.target && e.target.id !== "archModal" && !e.target.classList.contains("modal-close-btn") && e.target.id !== "btnCloseArch") {
+                return;
+            }
+            const modal = document.getElementById("archModal");
+            if (modal) {
+                modal.classList.remove("active");
+            }
         }
 
         window.onload = init;
     </script>
+
+    <!-- Architecture Modal -->
+    <div class="modal-overlay" id="archModal" onclick="closeArchModal(event)">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span>🏛️</span> MediBot Architecture & Layer-3 RBAC System
+                </div>
+                <button type="button" class="modal-close-btn" id="btnCloseArch" onclick="closeArchModal()" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 14px; font-weight: 500; color: #f1f5f9;">
+                    Decoupled Dual-Engine Architecture with Vector Retrieval Guardrails:
+                </div>
+                <img src="/architecture_diagram.svg" alt="MediBot System Architecture" style="width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(56, 189, 248, 0.3); margin-bottom: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
+
+                <div class="arch-grid">
+                    <div class="arch-layer-card">
+                        <h4>🔒 Retrieval-Layer RBAC Guardrails</h4>
+                        <p style="margin: 0; font-size: 12px; color: var(--text-dim);">
+                            Access filters are attached inside Qdrant search prefetch payloads (<code>must=[access_roles=role]</code>). 
+                            Adversarial jailbreaks physically fail because unauthorized chunks never enter application memory.
+                        </p>
+                    </div>
+                    <div class="arch-layer-card">
+                        <h4>⚡ Dual RAG Engines</h4>
+                        <p style="margin: 0; font-size: 12px; color: var(--text-dim);">
+                            <strong>SQL RAG</strong> handles relational analytics over claims and tickets. 
+                            <strong>Hybrid RAG</strong> uses BGE-small Dense embeddings + BM25 sparse vectors and Cross-Encoder reranking for medical protocols.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

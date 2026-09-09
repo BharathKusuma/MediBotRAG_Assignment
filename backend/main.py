@@ -230,7 +230,22 @@ def chat(request: ChatRequest, authorization: Optional[str] = Header(None)):
 static_dir = Path(__file__).resolve().parent / "static"
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "out"
 
+@app.get("/")
+def serve_index():
+    if static_dir.exists() and (static_dir / "index.html").exists():
+        return FileResponse(
+            str(static_dir / "index.html"),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
+    elif frontend_dist.exists() and (frontend_dist / "index.html").exists():
+        return FileResponse(
+            str(frontend_dist / "index.html"),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
+    return {"message": "MediBot API Running. Frontend not found."}
+
 if static_dir.exists():
     app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 elif frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+

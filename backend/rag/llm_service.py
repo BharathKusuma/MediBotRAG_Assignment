@@ -132,7 +132,12 @@ class LLMService:
                 except Exception as e:
                     print(f"Gemini client init error: {e}")
             if self.client is not None:
-                gemini_models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-pro']
+                gemini_models = [
+                    'gemini-2.5-flash',
+                    'gemini-2.0-flash',
+                    'gemini-1.5-flash',
+                    'gemini-2.5-flash-lite'
+                ]
                 for model_name in gemini_models:
                     try:
                         response = self.client.models.generate_content(
@@ -153,7 +158,14 @@ class LLMService:
             try:
                 from groq import Groq
                 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY") or GROQ_API_KEY)
-                groq_models = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "groq/compound-mini", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"]
+                groq_models = [
+                    "qwen/qwen3.6-27b",
+                    "openai/gpt-oss-120b",
+                    "openai/gpt-oss-20b",
+                    "llama-3.3-70b-versatile",
+                    "llama-3.1-8b-instant",
+                    "groq/compound-mini"
+                ]
                 messages = []
                 if system_instruction:
                     messages.append({"role": "system", "content": system_instruction})
@@ -183,17 +195,21 @@ class LLMService:
                 if system_instruction:
                     messages.append({"role": "system", "content": system_instruction})
                 messages.append({"role": "user", "content": prompt})
-                response = openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=messages,
-                    temperature=temperature
-                )
-                if response and response.choices:
-                    content = response.choices[0].message.content
-                    if content:
-                        return content.strip()
+                for o_model in ["gpt-4o-mini", "gpt-4o"]:
+                    try:
+                        response = openai_client.chat.completions.create(
+                            model=o_model,
+                            messages=messages,
+                            temperature=temperature
+                        )
+                        if response and response.choices:
+                            content = response.choices[0].message.content
+                            if content:
+                                return content.strip()
+                    except Exception as e:
+                        print(f"OpenAI API ({o_model}) error: {e}")
             except Exception as e:
-                print(f"OpenAI API error: {e}")
+                print(f"OpenAI client init error: {e}")
 
         # Intelligent local fallback when no API key is set or cloud calls fail
         return self._local_fallback_answer(prompt)
