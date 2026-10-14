@@ -1,12 +1,14 @@
 from typing import List, Dict, Any, Tuple
 from sentence_transformers import CrossEncoder
 from backend.config import RERANKER_MODEL, TOP_K_RERANKED
+from backend.observability.tracer import traceable
 
 class CrossEncoderReranker:
     def __init__(self, model_name: str = RERANKER_MODEL):
         print(f"Loading Cross-Encoder Reranker model: {model_name}...")
         self.model = CrossEncoder(model_name)
 
+    @traceable(name="reranker.cross_encoder", run_type="reranker")
     def rerank(
         self,
         query: str,
@@ -34,8 +36,16 @@ class CrossEncoderReranker:
         scored_candidates: List[Tuple[float, Dict[str, Any]]] = []
         for score, chunk in zip(scores, candidate_chunks):
             chunk_with_score = dict(chunk)
-            chunk_with_score["rerank_score"] = float(score)
-            scored_candidates.append((float(score), chunk_with_score))
+            raw_score = float(score)
+            content_words = len(chunk.get("content", "").split())
+            # If a chunk is just an isolated heading stub with under 10 words, discount it
+            # so substantive paragraphs and tables containing actual instructions rank above it.
+            if content_words < 10 and chunk.get("chunk_type") == "heading":
+                adjusted_score = raw_score - 5.0
+            else:
+                adjusted_score = raw_score
+            chunk_with_score["rerank_score"] = adjusted_score
+            scored_candidates.append((adjusted_score, chunk_with_score))
 
         # Sort descending by score
         scored_candidates.sort(key=lambda x: x[0], reverse=True)

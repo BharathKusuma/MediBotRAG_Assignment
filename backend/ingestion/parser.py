@@ -184,12 +184,12 @@ class DocumentParser:
                     for table in tables:
                         if table and len(table) > 1:
                             # Format table into clean Markdown representation
-                            headers = [str(col).replace('\n', ' ').strip() if col else '' for col in table[0]]
+                            headers = [col.replace('\n', ' ').strip() if col else '' for col in table[0]]
                             header_row = "| " + " | ".join(headers) + " |"
                             sep_row = "| " + " | ".join(["---"] * len(headers)) + " |"
                             data_rows = []
                             for row in table[1:]:
-                                row_cells = [str(cell).replace('\n', ' ').strip() if cell else '' for cell in row]
+                                row_cells = [cell.replace('\n', ' ').strip() if cell else '' for cell in row]
                                 data_rows.append("| " + " | ".join(row_cells) + " |")
                             table_md = "\n".join([header_row, sep_row] + data_rows)
                             
@@ -206,15 +206,16 @@ class DocumentParser:
                     text = page.extract_text() or ""
                     lines = text.split("\n")
                     buffer: List[str] = []
-
+                    current_major = current_heading
                     for line in lines:
-                        sline = line.strip()
+                        sline = line.strip().replace("(cid:127)", "•").replace("\uf0b7", "•")
                         if not sline:
                             if buffer:
                                 block = " ".join(buffer).strip()
                                 for sub in self._split_text_with_overlap(block, self.max_chunk_size, self.chunk_overlap):
+                                    chunk_text = f"[{current_heading}]\n{sub}" if not sub.startswith(f"[{current_heading}]") else sub
                                     chunks.append(DocumentChunk(
-                                        content=sub,
+                                        content=chunk_text,
                                         source_document=filename,
                                         collection=collection,
                                         access_roles=access_roles,
@@ -224,19 +225,24 @@ class DocumentParser:
                                 buffer = []
                             continue
 
-                        # Detect potential headings (Numbered like "1.2 Protocol" or ALL CAPS or Title Case headers)
-                        is_heading = (
-                            re.match(r'^(?:[0-9]+(?:\.[0-9]+)*|[A-Z][0-9]*\.)\s+[A-Z]', sline)
-                            or (len(sline) < 60 and sline.isupper() and len(sline) > 3)
-                            or (len(sline) < 50 and sline.endswith(":") and not sline.startswith("Note"))
+                        # Filter out recurring headers and footers
+                        if sline.startswith("CONFIDENTIAL") or sline.startswith("MediAssist Health Network") or ("Page " in sline and " of " in sline):
+                            continue
+
+                        # Detect genuine section headings
+                        is_major_section = bool(re.match(r'^(?:[A-Z]\.|\d+\.|SOP\s+\d+)\s*[-—–]?\s+[A-Z]', sline, re.IGNORECASE))
+                        is_sub_heading = bool(
+                            re.match(r'^(?:\d+\.\d+(?:\.\d+)*\s+[A-Z]|Immediate management|Risk stratification|Ongoing medications|Escalation|Severity scoring|Antimicrobial therapy|Weight-based dosing|Danger signs|Red flags|Management|Diagnostic criteria|Classification|Lifestyle modification|Ventilator bundle|Initial settings|Alarm response|Hourly monitoring|Maintenance schedule|Programming steps)', sline, re.IGNORECASE)
+                            or (len(sline) < 45 and sline.endswith(":") and not sline.lower().startswith("note") and not sline.startswith("ICD-"))
                         )
 
-                        if is_heading:
+                        if is_major_section:
                             if buffer:
                                 block = " ".join(buffer).strip()
                                 for sub in self._split_text_with_overlap(block, self.max_chunk_size, self.chunk_overlap):
+                                    chunk_text = f"[{current_heading}]\n{sub}" if not sub.startswith(f"[{current_heading}]") else sub
                                     chunks.append(DocumentChunk(
-                                        content=sub,
+                                        content=chunk_text,
                                         source_document=filename,
                                         collection=collection,
                                         access_roles=access_roles,
@@ -244,6 +250,7 @@ class DocumentParser:
                                         chunk_type="text"
                                     ))
                                 buffer = []
+                            current_major = sline
                             current_heading = sline
                             chunks.append(DocumentChunk(
                                 content=sline,
@@ -253,14 +260,31 @@ class DocumentParser:
                                 section_title=current_heading,
                                 chunk_type="heading"
                             ))
+                        elif is_sub_heading:
+                            if buffer:
+                                block = " ".join(buffer).strip()
+                                for sub in self._split_text_with_overlap(block, self.max_chunk_size, self.chunk_overlap):
+                                    chunk_text = f"[{current_heading}]\n{sub}" if not sub.startswith(f"[{current_heading}]") else sub
+                                    chunks.append(DocumentChunk(
+                                        content=chunk_text,
+                                        source_document=filename,
+                                        collection=collection,
+                                        access_roles=access_roles,
+                                        section_title=current_heading,
+                                        chunk_type="text"
+                                    ))
+                                buffer = []
+                            current_heading = f"{current_major} > {sline}" if current_major != "General" else sline
+                            buffer.append(sline)
                         else:
                             buffer.append(sline)
 
                     if buffer:
                         block = " ".join(buffer).strip()
                         for sub in self._split_text_with_overlap(block, self.max_chunk_size, self.chunk_overlap):
+                            chunk_text = f"[{current_heading}]\n{sub}" if not sub.startswith(f"[{current_heading}]") else sub
                             chunks.append(DocumentChunk(
-                                content=sub,
+                                content=chunk_text,
                                 source_document=filename,
                                 collection=collection,
                                 access_roles=access_roles,

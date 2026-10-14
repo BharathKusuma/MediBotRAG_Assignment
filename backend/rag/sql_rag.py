@@ -1,8 +1,10 @@
 import sqlite3
 import re
+import json
 from typing import Dict, Any, List, Optional
 from backend.config import DB_PATH, SQL_PERMITTED_ROLES
 from backend.rag.llm_service import get_llm_service
+from backend.observability.tracer import traceable
 
 # Database schema documentation for LLM prompt
 DATABASE_SCHEMA_DESCRIPTION = """
@@ -120,6 +122,7 @@ def is_analytical_question(question: str) -> bool:
     
     return (has_stat_word and has_table_word) and not is_procedural
 
+@traceable(name="sql_rag.chain", run_type="chain")
 def sql_rag_chain(question: str, role: str = "billing_executive") -> Dict[str, Any]:
     """
     Plain Python function implementing the 3-step SQL RAG pipeline:
@@ -218,7 +221,8 @@ Include specific numbers, totals, or breakdowns in an easy-to-read format."""
         "sources": [{
             "source_document": "mediassist.db",
             "section_title": f"SQL Query: {cleaned_sql}",
-            "collection": "database"
+            "collection": "database",
+            "content": f"Database: mediassist.db | Query: {cleaned_sql} | Results: {json.dumps(query_results)}"
         }],
         "retrieval_type": "sql_rag",
         "role": role,

@@ -162,9 +162,16 @@ def update_api_key(req: APIKeyRequest):
         "status": status
     }
 
+import uuid
+import time
+from backend.guardrails import evaluate_input_guardrail, evaluate_output_guardrail
+from backend.observability import log_request_metrics, traceable
+
 @app.post("/chat", response_model=ChatResponse)
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, authorization: Optional[str] = Header(None)):
+    request_id = str(uuid.uuid4())
+    req_start_time = time.time()
     role = request.role
     
     # Extract role from token if header provided
@@ -185,46 +192,128 @@ def chat(request: ChatRequest, authorization: Optional[str] = Header(None)):
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
-    # 1. Routing Logic: Analytical / Numbers -> SQL RAG; Knowledge -> Hybrid RAG
-    if request.force_sql or is_analytical_question(question):
-        print(f"Routing query '{question}' to SQL RAG for role '{role}'")
-        result = sql_rag_chain(question=question, role=role)
-        return ChatResponse(
-            answer=result["answer"],
-            sources=[
-                SourceCitation(
-                    source_document=s["source_document"],
-                    section_title=s["section_title"],
-                    collection=s["collection"],
-                    rerank_score=None
-                ) for s in result["sources"]
-            ],
-            retrieval_type=result["retrieval_type"],
-            role=result["role"],
-            blocked_by_rbac=result["blocked_by_rbac"],
-            sql_query=result.get("sql_query"),
-            data=result.get("data")
+    # 1. Pre-flight Input Guardrails
+    in_guard_start = time.time()
+    input_verdict = evaluate_input_guardrail(query=question, role=role, request_id=request_id)
+    in_guard_latency = (time.time() - in_guard_start) * 1000
+
+    if not input_verdict.allowed:
+        total_lat = (time.time() - req_start_time) * 1000
+        log_request_metrics(
+            request_id=request_id,
+            role=role,
+            question=question,
+            retrieval_type="guardrail_blocked",
+            total_latency_ms=total_lat,
+            retrieval_latency_ms=0.0,
+            rerank_latency_ms=0.0,
+            llm_latency_ms=0.0,
+            input_guardrail_latency_ms=in_guard_latency,
+            output_guardrail_latency_ms=0.0,
+            tokens={"prompt_tokens": len(question.split()), "completion_tokens": 0, "total_tokens": len(question.split())},
+            guardrail_status="BLOCKED",
+            sources_count=0
         )
-    else:
-        print(f"Routing query '{question}' to Hybrid RAG for role '{role}'")
-        retriever = get_hybrid_retriever()
-        result = retriever.answer_question(query=question, role=role)
         return ChatResponse(
-            answer=result["answer"],
-            sources=[
-                SourceCitation(
-                    source_document=s["source_document"],
-                    section_title=s["section_title"],
-                    collection=s["collection"],
-                    rerank_score=s.get("rerank_score")
-                ) for s in result["sources"]
-            ],
-            retrieval_type=result["retrieval_type"],
-            role=result["role"],
-            blocked_by_rbac=result["blocked_by_rbac"],
+            answer=input_verdict.user_message or "Request blocked by safety policy.",
+            sources=[],
+            retrieval_type="guardrail_blocked",
+            role=role,
+            blocked_by_rbac=True,
             sql_query=None,
             data=None
         )
+
+    # 2. Routing Logic: Analytical / Numbers -> SQL RAG; Knowledge -> Hybrid RAG
+    if request.force_sql or is_analytical_question(question):
+        print(f"Routing query '{question}' to SQL RAG for role '{role}'")
+        ret_type = "sql_rag"
+        ret_start = time.time()
+        result = sql_rag_chain(question=question, role=role)
+        target_lat = (time.time() - ret_start) * 1000
+        retrieval_lat, rerank_lat, llm_lat = target_lat * 0.2, 0.0, target_lat * 0.8
+    else:
+        print(f"Routing query '{question}' to Hybrid RAG for role '{role}'")
+        ret_type = "hybrid_rag"
+        ret_start = time.time()
+        retriever = get_hybrid_retriever()
+        result = retriever.answer_question(query=question, role=role)
+        target_lat = (time.time() - ret_start) * 1000
+        retrieval_lat, rerank_lat, llm_lat = target_lat * 0.3, target_lat * 0.1, target_lat * 0.6
+
+    # 3. Post-generation Output Guardrails
+    out_guard_start = time.time()
+    output_verdict = evaluate_output_guardrail(
+        response_text=result.get("answer", ""),
+        sources=result.get("sources", []),
+        role=role,
+        request_id=request_id
+    )
+    out_guard_latency = (time.time() - out_guard_start) * 1000
+
+    if not output_verdict.allowed:
+        total_lat = (time.time() - req_start_time) * 1000
+        log_request_metrics(
+            request_id=request_id,
+            role=role,
+            question=question,
+            retrieval_type=ret_type,
+            total_latency_ms=total_lat,
+            retrieval_latency_ms=retrieval_lat,
+            rerank_latency_ms=rerank_lat,
+            llm_latency_ms=llm_lat,
+            input_guardrail_latency_ms=in_guard_latency,
+            output_guardrail_latency_ms=out_guard_latency,
+            tokens={"prompt_tokens": len(question.split()), "completion_tokens": 15, "total_tokens": len(question.split()) + 15},
+            guardrail_status="BLOCKED",
+            sources_count=len(result.get("sources", []))
+        )
+        return ChatResponse(
+            answer=output_verdict.user_message or "Response withheld due to output compliance policy.",
+            sources=[],
+            retrieval_type=ret_type,
+            role=role,
+            blocked_by_rbac=True,
+            sql_query=None,
+            data=None
+        )
+
+    # 4. Successful pass
+    total_lat = (time.time() - req_start_time) * 1000
+    prompt_tokens = len(question.split()) * 2
+    completion_tokens = len(result["answer"].split())
+    log_request_metrics(
+        request_id=request_id,
+        role=role,
+        question=question,
+        retrieval_type=ret_type,
+        total_latency_ms=total_lat,
+        retrieval_latency_ms=retrieval_lat,
+        rerank_latency_ms=rerank_lat,
+        llm_latency_ms=llm_lat,
+        input_guardrail_latency_ms=in_guard_latency,
+        output_guardrail_latency_ms=out_guard_latency,
+        tokens={"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens, "total_tokens": prompt_tokens + completion_tokens},
+        guardrail_status="PASSED",
+        sources_count=len(result.get("sources", []))
+    )
+
+    return ChatResponse(
+        answer=result["answer"],
+        sources=[
+            SourceCitation(
+                source_document=s["source_document"],
+                section_title=s["section_title"],
+                collection=s["collection"],
+                rerank_score=s.get("rerank_score")
+            ) for s in result.get("sources", [])
+        ],
+        retrieval_type=result.get("retrieval_type", ret_type),
+        role=result.get("role", role),
+        blocked_by_rbac=result.get("blocked_by_rbac", False),
+        sql_query=result.get("sql_query"),
+        data=result.get("data")
+    )
 
 # Mount frontend static directory
 static_dir = Path(__file__).resolve().parent / "static"
@@ -248,4 +337,8 @@ if static_dir.exists():
     app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 elif frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
 

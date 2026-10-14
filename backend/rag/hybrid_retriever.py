@@ -12,6 +12,7 @@ from backend.config import (
 from backend.ingestion.embedder import HybridEmbedder
 from backend.rag.reranker import get_reranker
 from backend.rag.llm_service import get_llm_service
+from backend.observability.tracer import traceable
 
 import tempfile
 import shutil
@@ -135,6 +136,7 @@ class HybridRetriever:
                     )
         return None
 
+    @traceable(name="retriever.hybrid_query", run_type="retriever")
     def retrieve(
         self,
         query: str,
@@ -199,23 +201,25 @@ class HybridRetriever:
 
         except Exception as e:
             print(f"Native hybrid query error, executing fallback hybrid search: {e}")
-            # Fallback hybrid retrieval: execute dense search with filter
+            # Fallback hybrid retrieval: execute dense search with filter using modern query_points API
             try:
-                dense_results = self.client.search(
+                dense_response = self.client.query_points(
                     collection_name=COLLECTION_NAME,
-                    query_vector=("dense", dense_vec),
+                    query=dense_vec,
+                    using="dense",
                     query_filter=rbac_filter,
                     limit=top_k,
                     with_payload=True
                 )
-                for res in dense_results:
-                    if res.payload:
-                        candidate_chunks.append(res.payload)
+                for point in dense_response.points:
+                    if point.payload:
+                        candidate_chunks.append(point.payload)
             except Exception as e2:
                 print(f"Dense search fallback error: {e2}")
 
         return candidate_chunks
 
+    @traceable(name="rag.answer_question", run_type="chain")
     def answer_question(self, query: str, role: str) -> Dict[str, Any]:
         """Full Hybrid RAG pipeline: Query Validation -> RBAC Check -> Hybrid Retrieval -> Rerank -> LLM Generation."""
         # 0. API Key Detection Guardrail
@@ -298,6 +302,7 @@ class HybridRetriever:
                 "source_document": src,
                 "section_title": sec,
                 "collection": coll,
+                "content": content,
                 "rerank_score": chunk.get("rerank_score", None)
             })
 

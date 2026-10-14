@@ -16,27 +16,29 @@ class LLMService:
 
     def _init_client(self):
         # Auto-detect available API keys
-        if (self.provider == "gemini" or self.provider == "auto") and (os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY):
-            try:
-                from google import genai
-                api_key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
-                self.client = genai.Client(api_key=api_key)
-                self.provider = "gemini"
-                print("LLM Service initialized with Google Gemini API.")
-                return
-            except Exception as e:
-                print(f"Failed to init Gemini client: {e}")
+        groq_k = os.getenv("GROQ_API_KEY") or GROQ_API_KEY
+        gemini_k = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+        openai_k = os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY
 
-        if (self.provider == "groq" or self.provider == "auto") and (os.getenv("GROQ_API_KEY") or GROQ_API_KEY):
+        if (self.provider == "groq" or self.provider == "auto") and groq_k:
             try:
                 from groq import Groq
-                api_key = os.getenv("GROQ_API_KEY") or GROQ_API_KEY
-                self.client = Groq(api_key=api_key)
+                self.client = Groq(api_key=groq_k)
                 self.provider = "groq"
                 print("LLM Service initialized with Groq API.")
                 return
             except Exception as e:
                 print(f"Failed to init Groq client: {e}")
+
+        if (self.provider == "gemini" or self.provider == "auto") and gemini_k:
+            try:
+                from google import genai
+                self.client = genai.Client(api_key=gemini_k)
+                self.provider = "gemini"
+                print("LLM Service initialized with Google Gemini API.")
+                return
+            except Exception as e:
+                print(f"Failed to init Gemini client: {e}")
 
         if (self.provider == "openai" or self.provider == "auto") and (os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY):
             try:
@@ -123,48 +125,19 @@ class LLMService:
         if self.provider == "mock":
             self._init_client()
 
-        # 1. Try Gemini if configured
-        if (self.provider in ["gemini", "auto"]) and (os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY):
-            if not self.client or self.provider != "gemini":
-                try:
-                    from google import genai
-                    self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY)
-                except Exception as e:
-                    print(f"Gemini client init error: {e}")
-            if self.client is not None:
-                gemini_models = [
-                    'gemini-2.5-flash',
-                    'gemini-2.0-flash',
-                    'gemini-1.5-flash',
-                    'gemini-2.5-flash-lite'
-                ]
-                for model_name in gemini_models:
-                    try:
-                        response = self.client.models.generate_content(
-                            model=model_name,
-                            contents=prompt,
-                            config={
-                                "system_instruction": system_instruction,
-                                "temperature": temperature
-                            } if system_instruction else {"temperature": temperature}
-                        )
-                        if response and response.text:
-                            return response.text.strip()
-                    except Exception as e:
-                        print(f"Gemini API ({model_name}) error: {e}")
+        groq_k = os.getenv("GROQ_API_KEY") or GROQ_API_KEY
+        gemini_k = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+        openai_k = os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY
 
-        # 2. Try Groq if configured
-        if (self.provider in ["groq", "auto"]) and (os.getenv("GROQ_API_KEY") or GROQ_API_KEY):
+        # 1. Try Groq (Ultra-fast, high quality Llama & Qwen & GPT-OSS models)
+        if (self.provider in ["groq", "auto"] or not gemini_k) and groq_k:
             try:
                 from groq import Groq
-                groq_client = Groq(api_key=os.getenv("GROQ_API_KEY") or GROQ_API_KEY)
+                groq_client = Groq(api_key=groq_k)
                 groq_models = [
-                    "qwen/qwen3.6-27b",
                     "openai/gpt-oss-120b",
-                    "openai/gpt-oss-20b",
-                    "llama-3.3-70b-versatile",
-                    "llama-3.1-8b-instant",
-                    "groq/compound-mini"
+                    "qwen/qwen3.8-27b",
+                    "openai/gpt-oss-20b"
                 ]
                 messages = []
                 if system_instruction:
@@ -186,11 +159,40 @@ class LLMService:
             except Exception as e:
                 print(f"Groq client init error: {e}")
 
+        # 2. Try Gemini if configured
+        if gemini_k:
+            if not self.client or self.provider != "gemini":
+                try:
+                    from google import genai
+                    self.client = genai.Client(api_key=gemini_k)
+                except Exception as e:
+                    print(f"Gemini client init error: {e}")
+            if self.client is not None:
+                gemini_models = [
+                    'gemini-flash-latest',
+                    'gemini-flash-lite-latest',
+                    'gemini-pro-latest'
+                ]
+                for model_name in gemini_models:
+                    try:
+                        response = self.client.models.generate_content(
+                            model=model_name,
+                            contents=prompt,
+                            config={
+                                "system_instruction": system_instruction,
+                                "temperature": temperature
+                            } if system_instruction else {"temperature": temperature}
+                        )
+                        if response and response.text:
+                            return response.text.strip()
+                    except Exception as e:
+                        print(f"Gemini API ({model_name}) error: {e}")
+
         # 3. Try OpenAI if configured
-        if (self.provider in ["openai", "auto"]) and (os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY):
+        if openai_k:
             try:
                 from openai import OpenAI
-                openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY)
+                openai_client = OpenAI(api_key=openai_k)
                 messages = []
                 if system_instruction:
                     messages.append({"role": "system", "content": system_instruction})
